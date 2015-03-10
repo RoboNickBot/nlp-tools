@@ -6,6 +6,19 @@ import System.Directory (getHomeDirectory)
 
 import qualified Data.Text as T
 
+{- For each of these, a file must exist at:
+   
+   ~/litest/<code>/<code>-chartrigrams.txt
+   
+   Files in the correct format can be acquired from crubadan.org
+   
+   -}
+testlangs = [ "ab", "en", "es", "fr", "de", "ru", "ja", "ja-Latn"
+            , "fub" ]
+
+{- Put the target text at "./testtext.txt" -}
+getTargetText = fmap T.pack (readFile "testtext.txt")
+
 main = do paths <- getNGramPaths
           profiles <- sequence (fmap readCrData paths) 
           target <- getTargetText
@@ -20,8 +33,7 @@ getNGramPaths = do home <- getHomeDirectory
                                        ++ "-chartrigrams.txt") 
                                 testlangs)
 
-testlangs = [ "ab", "en", "es", "fr", "de", "ru", "ja", "ja-Latn"
-            , "fub" ]
 
-getTargetText = fmap T.pack (readFile "testtext.txt")
+
+
 
