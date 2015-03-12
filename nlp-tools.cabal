@@ -1,6 +1,6 @@
-name:                wridentify
+name:                nlp-tools
 version:             0.0.0.0
-synopsis:            identify writing systems used by texts
+synopsis:            a collection of NLP utilities
 license:             BSD2
 license-file:        LICENSE
 author:              RoboNickBot
