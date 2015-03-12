@@ -5,6 +5,7 @@ import NLP.Freq
 import System.Directory (getHomeDirectory)
 
 import qualified Data.Text as T
+import qualified Data.Set as S
 
 {- For each of these, a file must exist at:
    
@@ -22,9 +23,14 @@ getTargetText = fmap T.pack (readFile "testtext.txt")
 main = do paths <- getNGramPaths
           profiles <- sequence (fmap readCrData paths) 
           target <- getTargetText
-          let tfreq :: FreqMap TriGram
-              tfreq = (freqMap . ngrams) target
+          let ngs :: [TriGram]
+              ngs = ngrams target
+              scripts = S.unions (fmap ngblocks ngs) 
+              tfreq = freqMap ngs
               scores = fmap (cosine tfreq) profiles
+          putStrLn "[[[ Unicode blocks used ]]]"
+          print scripts
+          putStrLn "[[[ Cosines ]]]"
           sequence_ (fmap print (zip testlangs scores))
 
 getNGramPaths = do home <- getHomeDirectory
