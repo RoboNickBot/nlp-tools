@@ -26,20 +26,22 @@ main = do paths <- getNGramPaths
           let toks :: [NGToken]
               toks = tokens target
 
-              tris :: [TriGram NGToken]
-              tris = features toks
+              trFreq :: FreqList (TriGram NGToken)
+              trFreq = ( metaFeatures 
+                       . (features :: [NGToken] -> [TriGram NGToken])
+                       ) toks
 
-              scripts :: [UBlock]
-              scripts = features toks
-              
-              tfreq = mkFreqList tris
-              sfreq = mkFreqList scripts
-              
-              scores = fmap (cosine tfreq) profiles
+              sFreq :: FreqList (UBlock)
+              sFreq = ( metaFeatures 
+                      . (features :: [NGToken] -> [UBlock])
+                      ) toks 
+
+              scores = fmap (cosine trFreq) profiles
+
           putStrLn "[[[ Unicode blocks used ]]]\n"
-          sequence_ (fmap putStrLn (prettyprint sfreq))
+          sequence_ (fmap putStrLn (prettyprint sFreq))
           putStrLn "\n[[[ Top 10 Character TriGrams ]]]\n"
-          sequence_ (fmap putStrLn (take 10 (prettyprint tfreq)))
+          sequence_ (fmap putStrLn (take 10 (prettyprint trFreq)))
           putStrLn "\n[[[ Cosines ]]]\n"
           sequence_ (fmap print (zip testlangs scores))
 
