@@ -1,4 +1,4 @@
-import Data.NGram
+import NLP.General
 import NLP.Crubadan
 import NLP.Freq
 
@@ -23,14 +23,24 @@ getTargetText = fmap T.pack (readFile "testtext.txt")
 main = do paths <- getNGramPaths
           profiles <- sequence (fmap readCrData paths) 
           target <- getTargetText
-          let ngs :: [TriGram]
-              ngs = ngrams target
-              scripts = S.unions (fmap ngblocks ngs) 
-              tfreq = freqMap ngs
+          let toks :: [NGToken]
+              toks = tokens target
+
+              tris :: [TriGram NGToken]
+              tris = features toks
+
+              scripts :: [UBlock]
+              scripts = features toks
+              
+              tfreq = mkFreqList tris
+              sfreq = mkFreqList scripts
+              
               scores = fmap (cosine tfreq) profiles
-          putStrLn "[[[ Unicode blocks used ]]]"
-          print scripts
-          putStrLn "[[[ Cosines ]]]"
+          putStrLn "[[[ Unicode blocks used ]]]\n"
+          sequence_ (fmap putStrLn (prettyprint sfreq))
+          putStrLn "\n[[[ Top 10 Character TriGrams ]]]\n"
+          sequence_ (fmap putStrLn (take 10 (prettyprint tfreq)))
+          putStrLn "\n[[[ Cosines ]]]\n"
           sequence_ (fmap print (zip testlangs scores))
 
 getNGramPaths = do home <- getHomeDirectory
