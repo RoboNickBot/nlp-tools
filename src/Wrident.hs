@@ -19,29 +19,23 @@ testlangs = [ "ab", "en", "es", "fr", "de", "ru", "ja", "ja-Latn"
 
 {- Put the target text at "./testtext.txt" -}
 getTargetText = fmap T.pack (readFile "testtext.txt")
+getTargetString = readFile "testtext.txt"
 
 main = do paths <- getNGramPaths
           profiles <- sequence (fmap readCrData paths) 
-          target <- getTargetText
-          let toks :: [NGToken]
-              toks = tokens target
-
-              trFreq :: FreqList (TriGram NGToken)
-              trFreq = ( metaFeatures 
-                       . (features :: [NGToken] -> [TriGram NGToken])
-                       ) toks
+          target <- getTargetString
+          let trFreq :: FreqList TriGram
+              trFreq = features target
 
               sFreq :: FreqList (UBlock)
-              sFreq = ( metaFeatures 
-                      . (features :: [NGToken] -> [UBlock])
-                      ) toks 
+              sFreq = features target 
 
               scores = fmap (cosine trFreq) profiles
 
           putStrLn "[[[ Unicode blocks used ]]]\n"
           sequence_ (fmap putStrLn (prettyprint sFreq))
           putStrLn "\n[[[ Top 10 Character TriGrams ]]]\n"
-          sequence_ (fmap putStrLn (take 10 (prettyprint trFreq)))
+          sequence_ (fmap putStrLn ((take 10 . prettyprint) trFreq))
           putStrLn "\n[[[ Cosines ]]]\n"
           sequence_ (fmap print (zip testlangs scores))
 
