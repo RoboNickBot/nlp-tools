@@ -34,7 +34,7 @@ testprocess = (\ts -> (fmap fst ts, fmap snd ts)) . fmap d
 d (id,text) = let ls = parseSampSents text
                   num = length ls
                   (t,p) = L.splitAt 
-                               (num * 100 `div` percentTestData) ls
+                               (num * percentTestData `div` 100) ls
               in ((id, concat t), (id, concat p))
 
 
