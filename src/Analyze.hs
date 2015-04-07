@@ -38,6 +38,21 @@ testall dir =
          res = fmap (\(n,f) -> (n, choosebest pf f)) tf
 
      sequence_ (fmap print res)
+     putStrLn (stats res)
+
+stats :: [(String,String)] -> String
+stats ss = let total = length ss
+               correct = length (filter (\(a,b) -> a == b) ss)
+               percent = (fromIntegral correct)
+                         / (fromIntegral total)
+                         * 100
+           in "Accuracy: "
+              ++ (show total) 
+              ++ " / " 
+              ++ (show correct)
+              ++ " ("
+              ++ (show percent)
+              ++ ("%)")
 
 qual s = do t <- readFile ("/data/crubadan/" ++ s ++ "/SAMPSENTS")
             return (s,t)
