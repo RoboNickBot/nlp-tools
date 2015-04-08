@@ -3,36 +3,56 @@ import Database.HDBC.Sqlite3
 import Filesystem
 import Filesystem.Path.CurrentOS
 import Options.Applicative
-import Control.Applicative
 import Data.Monoid
 
-percent :: Parser String
-percent = strOption 
+percent :: Parser Int
+percent = option auto
             ( long "percent" 
               <> short 'p'
-              <> metavar "NUMBER"
-              <> help "Percentage of text to be withheld for testing")
+              <> metavar "PERCENT"
+              <> value 10
+              <> showDefault
+              <> help "Percentage of text to be withheld for \
+                      \testing, as a number in the \
+                      \range [0,100]" )
 
 dbname :: Parser String
 dbname = strOption 
-           ( long "database" 
-             <> short 'd'
+           ( long "output" 
+             <> short 'o'
              <> metavar "FILENAME"
-             <> help "Filename of database to be built" )
+             <> value "nlp.db"
+             <> showDefault
+             <> help "Filename of the database to be built" )
 
-data Opts = Opts String String
+rootdir :: Parser String
+rootdir = strOption
+            ( long "source"
+              <> short 's'
+              <> metavar "DIRECTORY"
+              <> value "/data/crubadan"
+              <> showDefault
+              <> help "Root directory of source language data" )
 
-parser = Opts <$> dbname <*> percent
+data Opts = Opts String String Int
 
-main = execParser (info parser mempty) >>= mkdatabase
+parser = Opts <$> dbname <*> rootdir <*> percent
+
+opts = info (helper <*> parser) 
+            ( fullDesc
+              <> progDesc "Build database for NLP Tools from \
+                          \language data on the filesystem"
+              <> header "builddb - build nlp database")
+
+main = execParser opts >>= mkdatabase
 
 testdataN = "testdata"
 maindataN = "maindata"
 
-mkdatabase (Opts name prc) = 
+mkdatabase (Opts dbname dataroot prc) = 
   do putStrLn "eh"
-     removeFile (decodeString name)
-     db <- conn name
+     removeFile (decodeString dbname)
+     db <- conn dbname
      run db (trifreqTable testdataN) []
      run db (trifreqTable maindataN) []
      return ()
