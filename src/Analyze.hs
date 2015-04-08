@@ -44,13 +44,11 @@ testall dir =
 stats :: [(String,String)] -> String
 stats ss = let total = length ss
                correct = length (filter (\(a,b) -> a == b) ss)
-               percent = (fromIntegral correct)
-                         / (fromIntegral total)
-                         * 100
+               percent = correct * 100 `div` total
            in "Accuracy: "
-              ++ (show total) 
+              ++ (show correct) 
               ++ " / " 
-              ++ (show correct)
+              ++ (show total)
               ++ " ("
               ++ (show percent)
               ++ ("%)")
