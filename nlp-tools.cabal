@@ -19,6 +19,6 @@ executable wrident
 executable analyze
   main-is:             Analyze.hs
   other-modules:       NLP.Tools
-  build-depends:       base >=4.7 && <4.8, containers, directory, nlp-libs >=0.0 && <0.1, optparse-applicative >= 0.11.0.2, text >=1.2 && <1.3
+  build-depends:       base >=4.7 && <4.8, containers, directory, nlp-libs >=0.0 && <0.1, optparse-applicative >= 0.11.0.2, text >=1.2 && <1.3, strict >=0.3 && <0.4
   hs-source-dirs:      src
   default-language:    Haskell2010

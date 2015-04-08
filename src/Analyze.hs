@@ -6,6 +6,7 @@ import NLP.Tools
 
 import Options.Applicative
 import System.Directory
+import System.IO.Strict
 import qualified Data.List as L
 
 percentTestData = 10
@@ -25,7 +26,7 @@ main = execParser opts >>= testall
 testall dir = 
   do targets <- (fmap (L.delete ".") . fmap (L.delete "..") 
                  . getDirectoryContents) dir
-     texts <- sequence (fmap qual targets)
+     texts <- sequence (fmap (bfetch . qual dir) targets)
      let (ts,ps) = testprocess texts
 
          tf :: [(String, FreqList TriGram)]
@@ -54,8 +55,11 @@ stats ss = let total = length ss
               ++ (show percent)
               ++ ("%)")
 
-qual s = do t <- readFile ("/data/crubadan/" ++ s ++ "/SAMPSENTS")
-            return (s,t)
+qual r s = (s, r ++ "/" ++ s ++ "/SAMPSENTS")
+
+bfetch (n,p) = do t <- System.IO.Strict.readFile p 
+                  return (n,t)
+
 
 testprocess :: [(String,String)] -> ([(String, String)], [(String, String)])
 testprocess = (\ts -> (fmap fst ts, fmap snd ts)) . fmap d
