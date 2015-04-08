@@ -1,6 +1,7 @@
 *~
 dist/
 *.js
+*.db
 .cabal-sandbox/
 cabal.sandbox.config
 
