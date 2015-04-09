@@ -9,45 +9,45 @@ import NLP.Freq
 import NLP.Tools
 
 percent :: Parser Int
-percent = option auto
-            ( long "percent" 
-              <> short 'p'
-              <> metavar "PERCENT"
-              <> value 10
-              <> showDefault
-              <> help "Percentage of text to be withheld for \
-                      \testing, as a number in the \
-                      \range [0,100]" )
+percent = option auto (long "percent" 
+                       <> short 'p'
+                       <> metavar "PERCENT"
+                       <> value 10
+                       <> showDefault
+                       <> help h)
+  where h = "Percentage of text to be withheld for testing, as \
+            \a number in the range [0,100]" 
 
 dbname :: Parser String
-dbname = strOption 
-           ( long "output" 
-             <> short 'o'
-             <> metavar "FILENAME"
-             <> value "nlp.db"
-             <> showDefault
-             <> help "Filename of the database to be built" )
+dbname = strOption (long "output" 
+                    <> short 'o'
+                    <> metavar "FILENAME"
+                    <> value "nlp.db"
+                    <> showDefault
+                    <> help h)
+  where h = "Filename of the database to be built"
 
 rootdir :: Parser String
-rootdir = strOption
-            ( long "source"
-              <> short 's'
-              <> metavar "DIRECTORY"
-              <> value "/data/crubadan"
-              <> showDefault
-              <> help "Root directory of source language data" )
+rootdir = strOption (long "source"
+                     <> short 's'
+                     <> metavar "DIRECTORY"
+                     <> value "/data/crubadan"
+                     <> showDefault
+                     <> help h)
+  where h = "Root directory of source language data"
+
+desc = fullDesc
+       <> progDesc "Build database for NLP Tools from \
+                   \language data on the filesystem"
+       <> header "builddb - build nlp database"
 
 data Opts = Opts String String Int
 
 parser = Opts <$> dbname <*> rootdir <*> percent
 
-opts = info (helper <*> parser) 
-            ( fullDesc
-              <> progDesc "Build database for NLP Tools from \
-                          \language data on the filesystem"
-              <> header "builddb - build nlp database")
+execOpts = execParser (info (helper <*> parser) desc)
 
-main = execParser opts >>= mkdatabase
+main = execOpts >>= mkdatabase
 
 mkdatabase (Opts dbname dataroot prc) = 
   do dirs <- datadirs dataroot
