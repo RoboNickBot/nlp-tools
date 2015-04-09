@@ -10,7 +10,8 @@ module NLP.Tools ( choosebest
                  , testdataN
                  , maindataN
                  , createTable
-                 , createNameTable ) where
+                 , createNameTable
+                 , fetchLangData ) where
 
 import Database.HDBC
 import Database.HDBC.Sqlite3
@@ -66,3 +67,18 @@ duoTable n = "CREATE TABLE "
              ++ n 
              ++ " (lid TEXT NOT NULL, \
                 \ldata TEXT NOT NULL)"
+
+fetchLangData :: IConnection c => c -> String -> IO ((String,String), (String,String))
+fetchLangData db lang = 
+  (,) <$> (readOut <$> getLangValue db lang testdataN)
+      <*> (readOut <$> getLangValue db lang maindataN)
+
+readOut vs = head (fmap readOne vs)
+
+readOne (a:b:[]) = (fromSql a, fromSql b)
+
+getLangValue :: IConnection c => c -> String -> String -> IO ([[SqlValue]])
+getLangValue db lang table = 
+  quickQuery' db ("SELECT lid, ldata from " 
+                  ++ table
+                  ++ " where lid <= ?") [toSql lang]
