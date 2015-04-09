@@ -1,9 +1,12 @@
-import Database.HDBC 
-import Database.HDBC.Sqlite3
-import Filesystem
-import Filesystem.Path.CurrentOS
+import System.Directory
+import System.IO (hPutStrLn, stderr)
+import System.IO.Strict (readFile)
 import Options.Applicative
-import Data.Monoid
+import qualified Data.List as L
+
+import NLP.General
+import NLP.Freq
+import NLP.Tools
 
 percent :: Parser Int
 percent = option auto
@@ -46,23 +49,53 @@ opts = info (helper <*> parser)
 
 main = execParser opts >>= mkdatabase
 
-testdataN = "testdata"
-maindataN = "maindata"
-
 mkdatabase (Opts dbname dataroot prc) = 
-  do putStrLn "eh"
-     removeFile (decodeString dbname)
-     db <- conn dbname
-     run db (trifreqTable testdataN) []
-     run db (trifreqTable maindataN) []
-     return ()
+  do db <- connect dbname
+     createTable db testdataN
+     createTable db maindataN 
+     s1 <- insertSt db testdataN
+     s2 <- insertSt db maindataN 
 
+     files <- datafilenames dataroot
+     sequence_ (processLang' db prc (s1,s2) <$> files)
+     disconnect db
 
-conn = connectSqlite3
+processLang' c i ss d = 
+  processLang i ss d 
+  >> commit c
+  >> hPutStrLn stderr ((fst d) ++ " stored...")
 
-ctest cn = run cn "CREATE TABLE test (id INTEGER NOT NULL, desc VARCHAR(80))" []
+datafilenames root = 
+  fmap (\n -> (n, root ++ "/" ++ n ++ "/SAMPSENTS"))
+       <$> (datadirs root)
 
-cinsr cn = run cn "INSERT INTO test (id) VALUES (0)" []
+datadirs = fmap (L.delete ".") 
+           . fmap (L.delete "..") 
+           . getDirectoryContents
 
-trifreqTable n = "CREATE TABLE " ++ n ++ " (lang TEXT NOT NULL, trigrams TEXT NOT NULL)"
+datafile (lang,fn) = 
+  (,) lang <$> System.IO.Strict.readFile fn
 
+smap :: (b -> c) -> (a, b) -> (a, c)
+smap f (a,b) = (a,f b)
+
+ftrig :: String -> FreqList TriGram
+ftrig = features
+
+processLang :: Int 
+            -> (Statement,Statement) 
+            -> (String, String) 
+            -> IO ()
+processLang p sts fn = 
+  do ds <- splitLang p <$> datafile fn
+     duosert (fst sts) ((smap (show . ftrig) . fst) ds)
+     duosert (snd sts) ((smap (show . ftrig) . snd) ds)
+
+splitLang :: Int 
+          -> (String, String) 
+          -> ((String, String), (String, String))
+splitLang p (l,d) = let dls = lines d
+                        i = (length dls) * 100 `div` p
+                        (d1,d2) = splitAt i dls
+                    in ( (l, concat d1)
+                       , (l, concat d2))

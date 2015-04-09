@@ -1,4 +1,18 @@
-module NLP.Tools (choosebest) where
+module NLP.Tools ( choosebest
+                 
+                 , connect
+                 , disconnect
+                 , Statement
+                 , commit
+                 
+                 , duosert
+                 , insertSt
+                 , testdataN
+                 , maindataN
+                 , createTable ) where
+
+import Database.HDBC
+import Database.HDBC.Sqlite3
 
 import NLP.General
 import NLP.Freq
@@ -16,3 +30,23 @@ evaluate :: (FreqList TriGram)
          -> (String, FreqList TriGram) 
          -> (String, Double)
 evaluate f (n,p) = (n, cosine f p)
+
+testdataN = "testdata"
+maindataN = "maindata"
+
+insertSt :: IConnection c => c -> String -> IO Statement
+insertSt c n = prepare c ("INSERT INTO " 
+                          ++ n ++ " VALUES (?, ?)")
+                          
+duosert :: Statement -> (String, String) -> IO ()
+duosert st (l,d) = execute st [toSql l, toSql d] 
+                       >> return ()
+
+connect = connectSqlite3
+
+createTable db n = run db (duoTable n) [] >> commit db
+
+duoTable n = "CREATE TABLE " 
+             ++ n 
+             ++ " (lid TEXT NOT NULL, \
+                \ldata TEXT NOT NULL)"
