@@ -9,10 +9,12 @@ module NLP.Tools ( choosebest
                  , insertSt
                  , testdataN
                  , maindataN
-                 , createTable ) where
+                 , createTable
+                 , createNameTable ) where
 
 import Database.HDBC
 import Database.HDBC.Sqlite3
+import Control.Applicative
 
 import NLP.General
 import NLP.Freq
@@ -33,6 +35,7 @@ evaluate f (n,p) = (n, cosine f p)
 
 testdataN = "testdata"
 maindataN = "maindata"
+namedataN = "namedata"
 
 insertSt :: IConnection c => c -> String -> IO Statement
 insertSt c n = prepare c ("INSERT INTO " 
@@ -43,6 +46,19 @@ duosert st (l,d) = execute st [toSql l, toSql d]
                        >> return ()
 
 connect = connectSqlite3
+
+getLangNames :: IConnection c => c -> IO [String]
+getLangNames db = 
+  fmap fromSql . concat 
+  <$> quickQuery' db ("SELECT * from " ++ namedataN) []
+
+createNameTable db names = 
+  do run db ("CREATE TABLE " ++ namedataN 
+             ++ " (names TEXT NOT NULL)") []
+     commit db
+     st <- prepare db ("INSERT INTO " ++ namedataN ++ " VALUES (?)")
+     executeMany st ((fmap (: []) . fmap toSql) names)
+     commit db
 
 createTable db n = run db (duoTable n) [] >> commit db
 

@@ -50,13 +50,17 @@ opts = info (helper <*> parser)
 main = execParser opts >>= mkdatabase
 
 mkdatabase (Opts dbname dataroot prc) = 
-  do db <- connect dbname
+  do dirs <- datadirs dataroot
+     let files = datafilenames dataroot dirs
+
+     db <- connect dbname
+     createNameTable db dirs
      createTable db testdataN
-     createTable db maindataN 
+     createTable db maindataN
      s1 <- insertSt db testdataN
      s2 <- insertSt db maindataN 
 
-     files <- datafilenames dataroot
+     
      sequence_ (processLang' db prc (s1,s2) <$> files)
      disconnect db
 
@@ -65,9 +69,9 @@ processLang' c i ss d =
   >> commit c
   >> hPutStrLn stderr ((fst d) ++ " stored...")
 
-datafilenames root = 
-  fmap (\n -> (n, root ++ "/" ++ n ++ "/SAMPSENTS"))
-       <$> (datadirs root)
+datafilenames :: String -> [String] -> [(String,String)]
+datafilenames root dirs = 
+  fmap (\n -> (n, root ++ "/" ++ n ++ "/SAMPSENTS")) dirs
 
 datadirs = fmap (L.delete ".") 
            . fmap (L.delete "..") 
