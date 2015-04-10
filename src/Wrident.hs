@@ -9,7 +9,15 @@ import qualified Data.Text as T
 import qualified Data.List as L
 import qualified Data.Set as S
 
-data Opts = Opts String
+data Opts = Opts String Int
+
+pNum = option auto (long "num-results"
+                    <> short 'n'
+                    <> value 10000
+                    <> metavar "NUMBER"
+                    <> showDefault
+                    <> help h)
+  where h = "Maximum number of top results to print"
 
 pDB = strOption (long "database" 
                  <> short 'd'
@@ -26,7 +34,7 @@ desc = fullDesc
                    \(see builddb)"
        <> header "identify the language of a text"
        
-parser = Opts <$> pDB
+parser = Opts <$> pDB <*> pNum
 
 execOpts = execParser (info (helper <*> parser) desc)
 
@@ -34,7 +42,7 @@ execOpts = execParser (info (helper <*> parser) desc)
 
 main = execOpts >>= identify
 
-identify (Opts name) = 
+identify (Opts name num) = 
   do db <- connect name
      langs <- getLangNames db
      datas <- fmap (smap trs) 
@@ -44,11 +52,10 @@ identify (Opts name) =
          trFreq = features target
 
          scores = L.reverse
-                  . L.sort 
-                  . fmap rever 
+                  . L.sortBy (\(a,b) (c,d) -> compare b d)
                   . fmap (smap (cosine trFreq)) $ datas 
      putStrLn ":: Top Matches ::"
-     (sequence_ . fmap print . take 10) scores
+     (sequence_ . fmap print . take num) scores
 
 rever (a,b) = (b,a)
 
