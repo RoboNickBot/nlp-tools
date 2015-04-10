@@ -76,8 +76,8 @@ fromDB name =
      langs <- getLangNames db
      results <- sequence (fmap (analyze db langs) langs)
      sequence (fmap print results)
-     print (stats results)
-     
+     putStrLn (stats results)
+
 analyze :: IConnection c => c -> [String] -> String -> IO (String,String)
 analyze db langs lang = 
   do ltest <- smap read <$> fetchLangTestData db lang

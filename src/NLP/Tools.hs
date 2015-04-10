@@ -92,7 +92,7 @@ getLangValue :: IConnection c => c -> String -> String -> IO ([[SqlValue]])
 getLangValue db lang table = 
   quickQuery db ("SELECT lid, ldata from " 
                  ++ table
-                 ++ " where lid <= ?") [toSql lang]
+                 ++ " where lid = ?") [toSql lang]
 
 smap :: (b -> c) -> (a, b) -> (a, c)
 smap f (a,b) = (a,f b)
