@@ -1,51 +1,56 @@
 import NLP.General
 import NLP.Crubadan
 import NLP.Freq
+import NLP.Tools
 
-import System.Directory (getHomeDirectory)
+import Options.Applicative
 
 import qualified Data.Text as T
+import qualified Data.List as L
 import qualified Data.Set as S
 
-{- For each of these, a file must exist at:
-   
-   ~/litest/<code>/<code>-chartrigrams.txt
-   
-   Files in the correct format can be acquired from crubadan.org
-   
-   -}
-testlangs = [ "ab", "en", "es", "fr", "de", "ru", "ja", "ja-Latn"
-            , "fub" ]
+data Opts = Opts String
 
-{- Put the target text at "./testtext.txt" -}
-getTargetText = fmap T.pack (readFile "testtext.txt")
-getTargetString = readFile "testtext.txt"
+pDB = strOption (long "database" 
+                 <> short 'd'
+                 <> value "nlp.db"
+                 <> metavar "FILENAME"
+                 <> showDefault
+                 <> help h )
+  where h = "Database to use for identification"
+  
+desc = fullDesc
+       <> progDesc "Identify text on standard input as \
+                   \a particular language, using language \
+                   \profiles stored in a database \
+                   \(see builddb)"
+       <> header "identify the language of a text"
+       
+parser = Opts <$> pDB
 
-main = do paths <- getNGramPaths
-          profiles <- sequence (fmap readCrData paths) 
-          target <- getTargetString
-          let trFreq :: FreqList TriGram
-              trFreq = features target
-
-              sFreq :: FreqList (UBlock)
-              sFreq = features target 
-
-              scores = fmap (cosine trFreq) profiles
-
-          putStrLn "[[[ Unicode blocks used ]]]\n"
-          sequence_ (fmap putStrLn (prettyprint sFreq))
-          putStrLn "\n[[[ Top 10 Character TriGrams ]]]\n"
-          sequence_ (fmap putStrLn ((take 10 . prettyprint) trFreq))
-          putStrLn "\n[[[ Cosines ]]]\n"
-          sequence_ (fmap print (zip testlangs scores))
-
-getNGramPaths = do home <- getHomeDirectory
-                   return (fmap (\l -> home ++ "/litest/" ++ l ++ "/" 
-                                       ++ l 
-                                       ++ "-chartrigrams.txt") 
-                                testlangs)
+execOpts = execParser (info (helper <*> parser) desc)
 
 
 
+main = execOpts >>= identify
 
+identify (Opts name) = 
+  do db <- connect name
+     langs <- getLangNames db
+     datas <- fmap (smap trs) 
+              <$> sequence (fmap (fetchLangMainData db) langs)
+     target <- getContents
+     let trFreq :: FreqList TriGram
+         trFreq = features target
 
+         scores = L.reverse
+                  . L.sort 
+                  . fmap rever 
+                  . fmap (smap (cosine trFreq)) $ datas 
+     putStrLn ":: Top Matches ::"
+     (sequence_ . fmap print . take 10) scores
+
+rever (a,b) = (b,a)
+
+trs :: String -> FreqList TriGram
+trs = read

@@ -26,7 +26,7 @@ import NLP.General
 import NLP.Freq
 
 choosebest :: [(String, FreqList TriGram)] -> FreqList TriGram -> String
-choosebest fls fl = (bestof . fmap (evaluate fl)) fls
+choosebest fls fl = (bestof . fmap (evaluateT fl)) fls
 
 bestof :: Ord b => [(a,b)] -> a
 bestof (f:rs) = fst . foldr (\(a,b) (c,d) -> if b > d
@@ -34,10 +34,10 @@ bestof (f:rs) = fst . foldr (\(a,b) (c,d) -> if b > d
                                                 else (c,d))
                             f $ rs
                             
-evaluate :: (FreqList TriGram) 
-         -> (String, FreqList TriGram) 
-         -> (String, Double)
-evaluate f (n,p) = (n, cosine f p)
+evaluateT :: (FreqList TriGram) 
+          -> (String, FreqList TriGram) 
+          -> (String, Double)
+evaluateT f (n,p) = (n, cosine f p)
 
 testdataN = "testdata"
 maindataN = "maindata"
