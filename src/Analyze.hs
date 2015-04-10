@@ -8,14 +8,26 @@ import Options.Applicative
 import System.Directory
 import System.IO.Strict
 import qualified Data.List as L
+import qualified Data.Map as M
 
 percentTestData = 10
 
 data Opts = Opts { opDir :: String
                  , opDB :: String
-                 , opPr :: Bool    }
+                 , opPr :: Bool
+                 , opNum :: Int    }
 
-parser = Opts <$> pDir <*> pDB <*> pPr
+parser = Opts <$> pDir <*> pDB <*> pPr <*> pNum
+
+pNum = option auto (long "load-size"
+                    <> short 'n'
+                    <> metavar "NUMBER"
+                    <> value 20
+                    <> showDefault
+                    <> help h)
+  where h = "The number of languages to load at one time; \
+            \a higher number will speed up execution but\
+            \will also consume more memory..."
 
 pDir = strOption (long "source" 
                   <> short 's' 
@@ -49,7 +61,7 @@ opts = execParser (info (helper <*> parser) desc)
 
 main = opts >>= (\os -> if opPr os
                            then fromFS (opDir os)
-                           else fromDB (opDB os))
+                           else fromDB (opDB os, opNum os))
 
 fromFS :: String -> IO ()
 fromFS dir = 
@@ -70,21 +82,54 @@ fromFS dir =
      sequence_ (fmap print res)
      putStrLn (stats res)
 
-fromDB :: String -> IO ()
-fromDB name = 
+type Results = M.Map String [(Double, String)]
+type Lang = (String, FreqList TriGram)
+
+fromDB :: (String, Int) -> IO ()
+fromDB (name, num) = 
   do db <- connect name
      langs <- getLangNames db
-     results <- sequence (fmap (analyze db langs) langs)
-     sequence (fmap print results)
-     putStrLn (stats results)
+     let sets = divie num langs
+     r <- sequence (fmap (analyze db langs) sets)
+     let results = combineRs langs r
+         winners = fmap (snd . maximum) results
+     (sequence_ . fmap print . M.toList) winners
+     (putStrLn . stats . M.toList) winners
 
-analyze :: IConnection c => c -> [String] -> String -> IO (String,String)
-analyze db langs lang = 
-  do ltest <- smap read <$> fetchLangTestData db lang
-     trigs <- fmap (smap read) 
-              <$> sequence (fmap (fetchLangMainData db) langs)
-     let winner = choosebest trigs (snd ltest)
-     return (lang, winner)
+combineRs :: [String] -> [Results] -> Results
+combineRs ls rs = 
+  foldr (\k -> M.insert k (mid k rs)) M.empty ls
+
+mid :: String -> [Results] -> [(Double,String)]
+mid k rs = foldr cc [] (fmap (M.lookup k) rs)
+
+cc :: Maybe [a] -> [a] -> [a]
+cc (Just as) bs = as ++ bs
+cc _ bs = bs
+
+divie :: Int -> [a] -> [[a]]
+divie 0 _ = [[]] -- possibly surprising?
+divie _ [] = []
+divie n xs = let (as,bs) = splitAt n xs
+             in as : divie n bs
+
+analyze :: IConnection c => c -> [String] -> [String] -> IO Results
+analyze db langs cands = 
+  do cs <- manyData db fetchLangMainData cands
+     ts <- manyData db fetchLangTestData langs
+     
+     return (foldr (compAll ts) M.empty cs)
+
+compAll :: [Lang] -> Lang -> Results -> Results
+compAll ts (cn,cd) r = 
+  foldr (\(tn,td) -> mupd tn cn (cosine td cd)) r ts
+  
+mupd :: String -> String -> Double -> Results -> Results
+mupd tn cn v r = case M.lookup tn r of
+                   Just vs -> M.insert tn ((v,cn) : vs) r
+                   Nothing -> M.insert tn ((v,cn) : []) r
+
+manyData db f ns = fmap (smap read) <$> sequence (fmap (f db) ns)
 
 stats :: [(String,String)] -> String
 stats ss = let total = length ss
