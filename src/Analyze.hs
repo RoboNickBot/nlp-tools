@@ -4,6 +4,7 @@ import NLP.Freq
 
 import NLP.Tools
 
+import Control.Exception (evaluate)
 import Options.Applicative
 import System.Directory
 import System.IO.Strict
@@ -118,7 +119,7 @@ analyze db langs cands =
   do cs <- manyData db fetchLangMainData cands
      ts <- manyData db fetchLangTestData langs
      
-     return (foldr (compAll ts) M.empty cs)
+     evaluate (foldr (compAll ts) M.empty cs)
 
 compAll :: [Lang] -> Lang -> Results -> Results
 compAll ts (cn,cd) r = 
