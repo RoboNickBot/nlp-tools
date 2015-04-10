@@ -1,8 +1,10 @@
 module NLP.Tools ( choosebest
-                 
+                 , smap
+
                  , connect
                  , disconnect
                  , Statement
+                 , IConnection
                  , commit
                  
                  , duosert
@@ -11,7 +13,10 @@ module NLP.Tools ( choosebest
                  , maindataN
                  , createTable
                  , createNameTable
-                 , fetchLangData ) where
+                 , getLangNames
+                 , fetchLangData
+                 , fetchLangMainData
+                 , fetchLangTestData ) where
 
 import Database.HDBC
 import Database.HDBC.Sqlite3
@@ -73,12 +78,21 @@ fetchLangData db lang =
   (,) <$> (readOut <$> getLangValue db lang testdataN)
       <*> (readOut <$> getLangValue db lang maindataN)
 
+fetchLangMainData :: IConnection c => c -> String -> IO (String, String)
+fetchLangMainData db lang = readOut <$> getLangValue db lang maindataN
+
+fetchLangTestData :: IConnection c => c -> String -> IO (String, String)
+fetchLangTestData db lang = readOut <$> getLangValue db lang testdataN
+
 readOut vs = head (fmap readOne vs)
 
 readOne (a:b:[]) = (fromSql a, fromSql b)
 
 getLangValue :: IConnection c => c -> String -> String -> IO ([[SqlValue]])
 getLangValue db lang table = 
-  quickQuery' db ("SELECT lid, ldata from " 
-                  ++ table
-                  ++ " where lid <= ?") [toSql lang]
+  quickQuery db ("SELECT lid, ldata from " 
+                 ++ table
+                 ++ " where lid <= ?") [toSql lang]
+
+smap :: (b -> c) -> (a, b) -> (a, c)
+smap f (a,b) = (a,f b)

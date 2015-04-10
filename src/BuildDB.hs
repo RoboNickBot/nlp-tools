@@ -80,9 +80,6 @@ datadirs = fmap (L.delete ".")
 datafile (lang,fn) = 
   (,) lang <$> System.IO.Strict.readFile fn
 
-smap :: (b -> c) -> (a, b) -> (a, c)
-smap f (a,b) = (a,f b)
-
 ftrig :: String -> FreqList TriGram
 ftrig = features
 
@@ -99,7 +96,7 @@ splitLang :: Int
           -> (String, String) 
           -> ((String, String), (String, String))
 splitLang p (l,d) = let dls = lines d
-                        i = (length dls) * 100 `div` p
+                        i = ((length dls) * p) `div` 100
                         (d1,d2) = splitAt i dls
                     in ( (l, concat d1)
                        , (l, concat d2))

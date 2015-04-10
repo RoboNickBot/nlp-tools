@@ -32,4 +32,6 @@ main = execParser opts >>= readdatabase
 readdatabase (Opts dbname langid) =
   do c <- connect dbname
      d <- fetchLangData c langid
-     print d
+     putStrLn (((snd . fst) d) 
+               ++ "\n\nBREAK\n\n" 
+               ++ ((snd . snd) d))

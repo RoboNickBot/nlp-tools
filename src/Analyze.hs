@@ -11,19 +11,48 @@ import qualified Data.List as L
 
 percentTestData = 10
 
-rdir :: Parser String
-rdir = strOption ( long "directory" 
-                <> short 'd' 
-                <> metavar "DIRECTORY" 
-                <> help "Root directory of data files")
+data Opts = Opts { opDir :: String
+                 , opDB :: String
+                 , opPr :: Bool    }
 
-opts = info (helper <*> rdir) ( fullDesc 
-                             <> progDesc "Test identifier"
-                             <> header "analyze - test identifier")
+parser = Opts <$> pDir <*> pDB <*> pPr
 
-main = execParser opts >>= testall
+pDir = strOption (long "source" 
+                  <> short 's' 
+                  <> metavar "DIRECTORY"
+                  <> value "/data/crubadan"
+                  <> showDefault
+                  <> help h)
+  where h = "Root directory of files to use as the test \
+            \data (only necessary if \"--use-files\" is \
+            \used"
+            
+pPr = switch (long "use-files"
+              <> help h)
+  where h = "Use to analyze with a corpora of sample text \
+            \on the filesystem, ignoring the database"
 
-testall dir = 
+pDB = strOption (long "database"
+                 <> short 'd'
+                 <> metavar "FILENAME"
+                 <> value "nlp.db"
+                 <> showDefault
+                 <> help h)
+  where h = "Filename of database to analyze"
+
+desc = fullDesc 
+       <> progDesc "Test identifier accuracy using \
+                   \pre-classified data" 
+       <> header "analyze - test identifier accuracy"
+
+opts = execParser (info (helper <*> parser) desc)
+
+main = opts >>= (\os -> if opPr os
+                           then fromFS (opDir os)
+                           else fromDB (opDB os))
+
+fromFS :: String -> IO ()
+fromFS dir = 
   do targets <- (fmap (L.delete ".") . fmap (L.delete "..") 
                  . getDirectoryContents) dir
      texts <- sequence (fmap (bfetch . qual dir) targets)
@@ -40,6 +69,22 @@ testall dir =
 
      sequence_ (fmap print res)
      putStrLn (stats res)
+
+fromDB :: String -> IO ()
+fromDB name = 
+  do db <- connect name
+     langs <- getLangNames db
+     results <- sequence (fmap (analyze db langs) langs)
+     sequence (fmap print results)
+     print (stats results)
+     
+analyze :: IConnection c => c -> [String] -> String -> IO (String,String)
+analyze db langs lang = 
+  do ltest <- smap read <$> fetchLangTestData db lang
+     trigs <- fmap (smap read) 
+              <$> sequence (fmap (fetchLangMainData db) langs)
+     let winner = choosebest trigs (snd ltest)
+     return (lang, winner)
 
 stats :: [(String,String)] -> String
 stats ss = let total = length ss
