@@ -53,6 +53,7 @@ identify (Opts name num) =
 
          scores = L.reverse
                   . L.sortBy (\(a,b) (c,d) -> compare b d)
+                  . filtNans
                   . fmap (smap (cosine trFreq)) $ datas 
      putStrLn ":: Top Matches ::"
      (sequence_ . fmap print . take num) scores
@@ -61,3 +62,6 @@ rever (a,b) = (b,a)
 
 trs :: String -> FreqList TriGram
 trs = read
+
+filtNans :: [(String, Double)] -> [(String, Double)]
+filtNans = filter (\(_,d) -> not (isNaN d))
