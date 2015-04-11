@@ -14,6 +14,7 @@ import Database.HDBC.Sqlite3
 
 import System.IO (hPutStrLn, stderr)
 import Control.Applicative
+import qualified Data.Map as M
 
 import NLP.General
 import NLP.Freq
@@ -37,12 +38,13 @@ createNameTable db names =
      st <- prepare db ("INSERT INTO " ++ nameName ++ " VALUES (?)")
      executeMany st ((fmap (: []) . fmap toSql) names)
 
-createDataTable db n = run db (duoTable n) []
+createDataTable db n = run db (trigramTable n) []
 
-duoTable n = "CREATE TABLE " 
-             ++ n 
-             ++ " (lid TEXT NOT NULL, \
-                \ldata TEXT NOT NULL)"
+trigramTable n = "CREATE TABLE " 
+                 ++ n 
+                 ++ " (lang TEXT NOT NULL, \
+                    \trigram TEXT NOT NULL,\
+                    \freq INT NOT NULL)"
 
 type QTrigs = [(String, FreqList TriGram)]
 
@@ -53,63 +55,53 @@ createTables db (a,b,t) =
   >> createDataTable db nameBData
   >> createDataTable db nameTriGrams
   >> commit db
-  >> fillTables db (a,b,t)
+  >> fillTable db nameAData a
+  >> fillTable db nameBData b
+  >> fillTable db nameTriGrams t
   >> commit db
 
-insertSt :: Database -> String -> IO Statement
-insertSt c n = prepare c ("INSERT INTO " 
-                          ++ n ++ " VALUES (?, ?)")
+fillTable :: Database -> String -> QTrigs -> IO ()
+fillTable db n ts =
+  do st <- prepare db ("INSERT INTO " ++ n ++ " VALUES (?, ?, ?)")
+     let rows :: [(String, String, Int)]
+         rows = (concat . fmap flat . fmap (smap toL)) ts
+         sqlRows = fmap (\(n,t,v) -> toSql n : toSql t : toSql v : []) 
+                        rows
+     executeMany st sqlRows
+  where flat (s,ts) = fmap (\(b,c) -> (s,b,c)) ts
+        toL = fmap (\(t,v) -> (show t, v))
+              . NLP.Tools.Database.toList
 
-duosert :: Statement -> String -> (String, String) -> IO ()
-duosert st n (l,d) = execute st [toSql l, toSql d]
-                     >> hPutStrLn stderr txt
-  where txt = ("Table " ++ n ++ " :: Inserted " ++ l ++ " ...")
-
-supersert :: Database -> String -> [(String,String)] -> IO ()
-supersert db name vs = sequence_ (fmap (dsrt db name) vs)
-  where dsrt db n v = do st <- insertSt db n
-                         duosert st n v
-
-fillTables :: Database -> (QTrigs,QTrigs,QTrigs) -> IO ()
-fillTables db (a,b,t) = 
-  let f = (fmap (smap (show :: FreqList TriGram -> String)))
-      (as,bs,ts) = (f a, f b, f t)
-  in do supersert db nameAData as
-        supersert db nameBData bs
-        supersert db nameTriGrams ts 
+toList :: FreqList TriGram -> [(TriGram,Int)]
+toList = M.toList . freqMap
 
 fetchLangNames :: Database -> IO [String]
 fetchLangNames db = 
   fmap fromSql . concat 
-  <$> quickQuery' db ("SELECT * from " ++ nameName) []
+  <$> quickQuery db ("SELECT * from " ++ nameName) []
 
-getLangValue :: Database -> String -> String -> IO ([[SqlValue]])
-getLangValue db lang table = 
-  quickQuery db ("SELECT lid, ldata from " 
+getLangValues :: Database -> String -> String -> IO ([[SqlValue]])
+getLangValues db lang table = 
+  quickQuery db ("SELECT trigram, freq FROM " 
                  ++ table
-                 ++ " where lid = ?") [toSql lang]
+                 ++ " WHERE lang = ?") [toSql lang]
 
-readOut vs = head (fmap readOne vs)
+readOut vs = (fmap readOne vs)
 
-readOne (a:b:[]) = (fromSql a, fromSql b)
+readOne :: [SqlValue] -> (String, Int)
+readOne (b:c:[]) = (fromSql b, fromSql c)
 
-type GetProfile = Database -> String -> IO (String, FreqList TriGram)
+toFreqL :: [(String, Int)] -> FreqList TriGram
+toFreqL = FreqList . M.fromList . fmap (\(s,i) -> (read s, i))
 
-fetchTriGrams :: GetProfile 
-fetchTriGrams db lang = 
-  smap read 
+fetchTriGrams' :: Database -> String -> String 
+               -> IO (String, FreqList TriGram)
+fetchTriGrams' db name lang = 
+  (,) lang
+  <$> toFreqL
   <$> readOut 
-  <$> getLangValue db lang nameTriGrams
+  <$> getLangValues db lang name
 
-fetchAData :: GetProfile
-fetchAData db lang = 
-  smap read
-  <$> readOut
-  <$> getLangValue db lang nameAData
-
-fetchBData :: GetProfile
-fetchBData db lang = 
-  smap read
-  <$> readOut
-  <$> getLangValue db lang nameBData
-
+fetchTriGrams db lang = fetchTriGrams' db nameTriGrams lang
+fetchAData db lang = fetchTriGrams' db nameAData lang
+fetchBData db lang = fetchTriGrams' db nameBData lang
