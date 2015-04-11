@@ -6,8 +6,9 @@ langid :: Parser String
 langid = strOption
            ( long "lang" 
              <> short 'l'
-             <> metavar "CODE" )
-             
+             <> metavar "CODE"
+             <> help "Language to read" )
+
 dbname :: Parser String
 dbname = strOption 
            ( long "database" 
@@ -30,8 +31,9 @@ opts = info (helper <*> parser)
 main = execParser opts >>= readdatabase
 
 readdatabase (Opts dbname langid) =
-  do c <- connect dbname
-     d <- fetchLangData c langid
-     putStrLn (((snd . fst) d) 
+  do db <- connect dbname
+     a <- fetchAData db langid
+     b <- fetchBData db langid
+     putStrLn ((show . snd $ a) 
                ++ "\n\nBREAK\n\n" 
-               ++ ((snd . snd) d))
+               ++ (show . snd $ b))

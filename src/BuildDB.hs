@@ -1,6 +1,5 @@
 import System.Directory
 import System.IO (hPutStrLn, stderr)
-import System.IO.Strict (readFile)
 import Options.Applicative
 import qualified Data.List as L
 
@@ -52,22 +51,17 @@ main = execOpts >>= mkdatabase
 mkdatabase (Opts dbname dataroot prc) = 
   do dirs <- datadirs dataroot
      let files = datafilenames dataroot dirs
+     sents <- sequence (fmap datafile files)
+     let (aSents,bSents) = 
+           unzip (fmap (splitLang prc) sents)
+         f = fmap (smap ftrig)
+         allData = f sents
+         aData = f aSents
+         bData = f bSents
 
      db <- connect dbname
-     createNameTable db dirs
-     createTable db testdataN
-     createTable db maindataN
-     s1 <- insertSt db testdataN
-     s2 <- insertSt db maindataN 
-
-     
-     sequence_ (processLang' db prc (s1,s2) <$> files)
+     createTables db (aData, bData, allData)
      disconnect db
-
-processLang' c i ss d = 
-  processLang i ss d 
-  >> commit c
-  >> hPutStrLn stderr ((fst d) ++ " stored...")
 
 datafilenames :: String -> [String] -> [(String,String)]
 datafilenames root dirs = 
@@ -77,20 +71,11 @@ datadirs = fmap (L.delete ".")
            . fmap (L.delete "..") 
            . getDirectoryContents
 
-datafile (lang,fn) = 
-  (,) lang <$> System.IO.Strict.readFile fn
+datafile :: (String, String) -> IO (String, String)
+datafile (lang,fn) = (,) lang <$> readFile fn
 
 ftrig :: String -> FreqList TriGram
 ftrig = features
-
-processLang :: Int 
-            -> (Statement,Statement) 
-            -> (String, String) 
-            -> IO ()
-processLang p sts fn = 
-  do ds <- splitLang p <$> datafile fn
-     duosert (fst sts) ((smap (show . ftrig) . fst) ds)
-     duosert (snd sts) ((smap (show . ftrig) . snd) ds)
 
 splitLang :: Int 
           -> (String, String) 

@@ -44,9 +44,8 @@ main = execOpts >>= identify
 
 identify (Opts name num) = 
   do db <- connect name
-     langs <- getLangNames db
-     datas <- fmap (smap trs) 
-              <$> sequence (fmap (fetchLangMainData db) langs)
+     langs <- fetchLangNames db
+     datas <- sequence (fmap (fetchTriGrams db) langs)
      target <- getContents
      let trFreq :: FreqList TriGram
          trFreq = features target

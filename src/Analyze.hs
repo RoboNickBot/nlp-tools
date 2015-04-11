@@ -88,7 +88,7 @@ type Lang = (String, FreqList TriGram)
 fromDB :: (String, Int) -> IO ()
 fromDB (name, num) = 
   do db <- connect name
-     langs <- getLangNames db
+     langs <- fetchLangNames db
      let sets = divie num langs
      r <- sequence (fmap (analyze db langs) sets)
      let results = combineRs langs r
@@ -113,11 +113,11 @@ divie _ [] = []
 divie n xs = let (as,bs) = splitAt n xs
              in as : divie n bs
 
-analyze :: IConnection c => c -> [String] -> [String] -> IO Results
+analyze :: Database -> [String] -> [String] -> IO Results
 analyze db langs cands = 
-  do cs <- manyData db fetchLangMainData cands
-     ts <- manyData db fetchLangTestData langs
-     
+  do cs <- manyData db fetchBData cands
+     ts <- manyData db fetchAData langs
+
      return (foldr (compAll ts) M.empty cs)
 
 compAll :: [Lang] -> Lang -> Results -> Results
@@ -129,7 +129,7 @@ mupd tn cn v r = case M.lookup tn r of
                    Just vs -> M.insert tn ((v,cn) : vs) r
                    Nothing -> M.insert tn ((v,cn) : []) r
 
-manyData db f ns = fmap (smap read) <$> sequence (fmap (f db) ns)
+manyData db f ns = sequence (fmap (f db) ns)
 
 stats :: [(String,String)] -> String
 stats ss = let total = length ss
