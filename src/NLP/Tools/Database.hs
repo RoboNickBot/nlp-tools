@@ -3,7 +3,12 @@ module NLP.Tools.Database ( connect
                           , Statement
                           , Database
                           
+                          , nameAData
+                          , nameBData
+                          , nameTriGrams
+                          
                           , createTables
+                          , insertLang
                           , fetchLangNames
                           , fetchTriGrams
                           , fetchAData
@@ -48,17 +53,15 @@ trigramTable n = "CREATE TABLE "
 
 type QTrigs = [(String, FreqList TriGram)]
 
-createTables :: Database -> (QTrigs,QTrigs,QTrigs) -> IO ()
-createTables db (a,b,t) = 
-  createNameTable db (fmap fst t)
-  >> createDataTable db nameAData
+createTables :: Database -> IO ()
+createTables db = 
+  createDataTable db nameAData
   >> createDataTable db nameBData
   >> createDataTable db nameTriGrams
   >> commit db
-  >> fillTable db nameAData a
-  >> fillTable db nameBData b
-  >> fillTable db nameTriGrams t
-  >> commit db
+
+insertLang :: Database -> String -> (String, FreqList TriGram) -> IO ()
+insertLang db n trigs = fillTable db n [trigs] >> commit db
 
 fillTable :: Database -> String -> QTrigs -> IO ()
 fillTable db n ts =
@@ -78,7 +81,8 @@ toList = M.toList . freqMap
 fetchLangNames :: Database -> IO [String]
 fetchLangNames db = 
   fmap fromSql . concat 
-  <$> quickQuery db ("SELECT * from " ++ nameName) []
+  <$> quickQuery db ("SELECT DISTINCT lang FROM " 
+                     ++ nameTriGrams) []
 
 getLangValues :: Database -> String -> String -> IO ([[SqlValue]])
 getLangValues db lang table = 
