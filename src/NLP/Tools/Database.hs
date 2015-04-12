@@ -91,14 +91,14 @@ toList = M.toList . freqMap
 fetchLangNames :: Database -> IO [String]
 fetchLangNames db = 
   fmap fromSql . concat 
-  <$> quickQuery db ("SELECT DISTINCT lang FROM " 
-                     ++ nameTriGrams) []
+  <$> quickQuery' db ("SELECT DISTINCT lang FROM " 
+                      ++ nameTriGrams) []
 
 getLangValues :: Database -> String -> String -> IO ([[SqlValue]])
 getLangValues db lang table = 
-  quickQuery db ("SELECT gram1, gram2, gram3, freq FROM " 
-                 ++ table
-                 ++ " WHERE lang = ?") [toSql lang]
+  quickQuery' db ("SELECT gram1, gram2, gram3, freq FROM " 
+                  ++ table
+                  ++ " WHERE lang = ?") [toSql lang]
 
 readOut :: [[SqlValue]] -> [(TriGram, Int)]
 readOut vs = (fmap readOne vs)
