@@ -48,7 +48,9 @@ createDataTable db n = run db (trigramTable n) []
 trigramTable n = "CREATE TABLE " 
                  ++ n 
                  ++ " (lang TEXT NOT NULL, \
-                    \trigram TEXT NOT NULL,\
+                    \gram1 CHARACTER(1) NOT NULL, \
+                    \gram2 CHARACTER(1) NOT NULL, \
+                    \gram3 CHARACTER(1) NOT NULL, \
                     \freq INT NOT NULL)"
 
 type QTrigs = [(String, FreqList TriGram)]
@@ -65,14 +67,22 @@ insertLang db n trigs = fillTable db n [trigs] >> commit db
 
 fillTable :: Database -> String -> QTrigs -> IO ()
 fillTable db n ts =
-  do st <- prepare db ("INSERT INTO " ++ n ++ " VALUES (?, ?, ?)")
-     let rows :: [(String, String, Int)]
+  do st <- prepare db ("INSERT INTO " ++ n 
+                       ++ " VALUES (?, ?, ?, ?, ?)")
+     let rows :: [(String, Char, Char, Char, Int)]
          rows = (concat . fmap flat . fmap (smap toL)) ts
-         sqlRows = fmap (\(n,t,v) -> toSql n : toSql t : toSql v : []) 
+         sqlRows = fmap (\(n,g1,g2,g3,v) -> toSql n 
+                                            : toSql g1
+                                            : toSql g2
+                                            : toSql g3
+                                            : toSql v : []) 
                         rows
      executeMany st sqlRows
-  where flat (s,ts) = fmap (\(b,c) -> (s,b,c)) ts
-        toL = fmap (\(t,v) -> (show t, v))
+  where flat (s,ts) = fmap (\(g1,g2,g3,c) -> (s,g1,g2,g3,c)) ts
+        toL = fmap (\(t,v) -> ( fromTok (tri1 t)
+                              , fromTok (tri2 t)
+                              , fromTok (tri3 t)
+                              , v                ))
               . NLP.Tools.Database.toList
 
 toList :: FreqList TriGram -> [(TriGram,Int)]
@@ -86,17 +96,19 @@ fetchLangNames db =
 
 getLangValues :: Database -> String -> String -> IO ([[SqlValue]])
 getLangValues db lang table = 
-  quickQuery db ("SELECT trigram, freq FROM " 
+  quickQuery db ("SELECT gram1, gram2, gram3, freq FROM " 
                  ++ table
                  ++ " WHERE lang = ?") [toSql lang]
 
+readOut :: [[SqlValue]] -> [(TriGram, Int)]
 readOut vs = (fmap readOne vs)
 
-readOne :: [SqlValue] -> (String, Int)
-readOne (b:c:[]) = (fromSql b, fromSql c)
+readOne :: [SqlValue] -> (TriGram, Int)
+readOne (g1:g2:g3:c:[]) = let f = toTok . fromSql
+                          in (TriGram (f g1) (f g2) (f g3), fromSql c)
 
-toFreqL :: [(String, Int)] -> FreqList TriGram
-toFreqL = FreqList . M.fromList . fmap (\(s,i) -> (read s, i))
+toFreqL :: [(TriGram, Int)] -> FreqList TriGram
+toFreqL = FreqList . (M.fromList :: [(TriGram,Int)] -> M.Map TriGram Int)
 
 fetchTriGrams' :: Database -> String -> String 
                -> IO (String, FreqList TriGram)
