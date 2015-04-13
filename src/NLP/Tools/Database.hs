@@ -34,14 +34,14 @@ nameBData = "bdata"
 nameTriGrams = "trigrams"
 nameName = "names"
 
-data Database = Database { conn :: Connection
-                         , getAllTriGrams :: Statement
-                         , getATriGrams :: Statement
-                         , getBTriGrams :: Statement
-                         , getLangNames :: Statement
-                         , insertAllTriGrams :: Statement
-                         , insertATriGrams :: Statement
-                         , insertBTriGrams :: Statement }
+data Database = Database { conn :: !Connection
+                         , getAllTriGrams :: !Statement
+                         , getATriGrams :: !Statement
+                         , getBTriGrams :: !Statement
+                         , getLangNames :: !Statement
+                         , insertAllTriGrams :: !Statement
+                         , insertATriGrams :: !Statement
+                         , insertBTriGrams :: !Statement }
 
 disconnectDB :: Database -> IO ()
 disconnectDB = disconnect . conn
@@ -80,8 +80,8 @@ insertSt db table = prepare db ("INSERT INTO " ++ table
 
 fetchSt db table = 
   trace "called fetchSt" $ prepare db ("SELECT gram1, gram2, gram3, freq FROM " 
-                                      ++ table
-                                      ++ " WHERE lang = ?")
+                                       ++ table
+                                       ++ " WHERE lang = ?")
 
 fetchLangsSt db = prepare db ("SELECT DISTINCT lang FROM " 
                               ++ nameTriGrams)
