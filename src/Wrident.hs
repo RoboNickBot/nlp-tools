@@ -4,6 +4,7 @@ import NLP.Freq
 import NLP.Tools
 
 import Options.Applicative
+import Control.Exception (evaluate)
 
 import qualified Data.Text as T
 import qualified Data.List as L
@@ -43,7 +44,7 @@ execOpts = execParser (info (helper <*> parser) desc)
 main = execOpts >>= identify
 
 identify (Opts name num) = 
-  do db <- connectDB name
+  do db <- connectDB name >>= evaluate
      langs <- fetchLangNames db
      datas <- sequence (fmap (fetchTriGrams db) langs)
      target <- getContents

@@ -20,6 +20,7 @@ import Database.HDBC
 import Database.HDBC.Sqlite3
 
 import System.IO (hPutStrLn, stderr)
+import Control.Exception (evaluate)
 import Control.Applicative
 import qualified Data.Map as M
 
@@ -47,8 +48,10 @@ disconnectDB :: Database -> IO ()
 disconnectDB = disconnect . conn
 
 connectDB :: String -> IO Database
-connectDB dbname = do db <- connectSqlite3 dbname
-                      mkStatements db
+connectDB dbname = do putStrLn "Check"
+                      c <- connectSqlite3 dbname
+                      db <- mkStatements c
+                      evaluate db
 
 createDB :: String -> IO Database
 createDB dbname = do c <- connectSqlite3 dbname
@@ -64,24 +67,28 @@ mkStatements c =
      gATriGrams <- fetchSt c nameAData
      gBTriGrams <- fetchSt c nameBData
      gLangNames <- fetchLangsSt c
-     return (Database c
-                      gAllTriGrams
-                      gATriGrams
-                      gBTriGrams
-                      gLangNames
-                      sAllTriGrams
-                      sATriGrams
-                      sBTriGrams)
+     evaluate (Database c
+                        gAllTriGrams
+                        gATriGrams
+                        gBTriGrams
+                        gLangNames
+                        sAllTriGrams
+                        sATriGrams
+                        sBTriGrams)
 
 
 insertSt :: Connection -> String -> IO Statement
 insertSt db table = prepare db ("INSERT INTO " ++ table 
                                 ++ " VALUES (?, ?, ?, ?, ?)")
 
-fetchSt db table = 
-  trace "called fetchSt" $ prepare db ("SELECT gram1, gram2, gram3, freq FROM " 
-                                       ++ table
-                                       ++ " WHERE lang = ?")
+prepSt c s = prepare c s
+                     
+strSt table = ("SELECT gram1, gram2, gram3, freq FROM " 
+                                        ++ table
+                                        ++ " WHERE lang = ?")
+
+fetchSt c table = 
+  prepSt c (strSt table)
 
 fetchLangsSt db = prepare db ("SELECT DISTINCT lang FROM " 
                               ++ nameTriGrams)
