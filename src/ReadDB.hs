@@ -31,7 +31,7 @@ opts = info (helper <*> parser)
 main = execParser opts >>= readdatabase
 
 readdatabase (Opts dbname langid) =
-  do db <- connect dbname
+  do db <- connectDB dbname
      a <- fetchAData db langid
      b <- fetchBData db langid
      putStrLn ((show . snd $ a) 

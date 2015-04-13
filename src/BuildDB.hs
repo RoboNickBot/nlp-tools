@@ -53,12 +53,11 @@ mkdatabase (Opts dbname dataroot prc) =
   do dirs <- datadirs dataroot
      let files = datafilenames dataroot dirs
      
-     db <- connect dbname
-     createTables db
+     db <- createDB dbname
 
      sequence_ (fmap (processFile db prc) files)
 
-     disconnect db
+     disconnectDB db
 
 processFile :: Database -> Int -> (String, String) -> IO ()
 processFile db p (l,fn) = 
@@ -68,10 +67,10 @@ processFile db p (l,fn) =
          allData = f sents
          aData = f aSents
          bData = f bSents
-     insertLang db nameTriGrams allData
-     insertLang db nameAData aData
-     insertLang db nameBData bData
-     putStrLn $ "Inserted lang <" ++ l ++ "> ..."
+     insertLangAll db allData
+     insertLangA db aData
+     insertLangB db bData
+     hPutStrLn stderr $ "Inserted lang <" ++ l ++ "> ..."
 
 datafilenames :: String -> [String] -> [(String,String)]
 datafilenames root dirs = 

@@ -87,7 +87,7 @@ type Lang = (String, FreqList TriGram)
 
 fromDB :: (String, Int) -> IO ()
 fromDB (name, num) = 
-  do db <- connect name
+  do db <- connectDB name
      langs <- fetchLangNames db
      let sets = divie num langs
      r <- sequence (fmap (analyze db langs) sets)

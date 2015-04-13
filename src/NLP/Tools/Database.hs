@@ -1,5 +1,6 @@
-module NLP.Tools.Database ( connect 
-                          , disconnect
+module NLP.Tools.Database ( createDB
+                          , connectDB
+                          , disconnectDB
                           , Statement
                           , Database
                           
@@ -7,8 +8,9 @@ module NLP.Tools.Database ( connect
                           , nameBData
                           , nameTriGrams
                           
-                          , createTables
-                          , insertLang
+                          , insertLangAll
+                          , insertLangA
+                          , insertLangB
                           , fetchLangNames
                           , fetchTriGrams
                           , fetchAData
@@ -32,9 +34,57 @@ nameBData = "bdata"
 nameTriGrams = "trigrams"
 nameName = "names"
 
-type Database = Connection
+data Database = Database { conn :: Connection
+                         , getAllTriGrams :: Statement
+                         , getATriGrams :: Statement
+                         , getBTriGrams :: Statement
+                         , getLangNames :: Statement
+                         , insertAllTriGrams :: Statement
+                         , insertATriGrams :: Statement
+                         , insertBTriGrams :: Statement }
 
-connect = connectSqlite3
+disconnectDB :: Database -> IO ()
+disconnectDB = disconnect . conn
+
+connectDB :: String -> IO Database
+connectDB dbname = do db <- connectSqlite3 dbname
+                      mkStatements db
+
+createDB :: String -> IO Database
+createDB dbname = do db <- connectSqlite3 dbname
+                     createTables db
+                     mkStatements db
+
+mkStatements :: Connection -> IO Database
+mkStatements db = 
+  do sAllTriGrams <- insertSt db nameTriGrams
+     sATriGrams <- insertSt db nameAData
+     sBTriGrams <- insertSt db nameBData
+     gAllTriGrams <- fetchSt db nameTriGrams
+     gATriGrams <- fetchSt db nameAData
+     gBTriGrams <- fetchSt db nameBData
+     gLangNames <- fetchLangsSt db
+     return (Database db
+                      gAllTriGrams
+                      gATriGrams
+                      gBTriGrams
+                      gLangNames
+                      sAllTriGrams
+                      sATriGrams
+                      sBTriGrams)
+
+
+insertSt :: Connection -> String -> IO Statement
+insertSt db table = prepare db ("INSERT INTO " ++ table 
+                                ++ " VALUES (?, ?, ?, ?, ?)")
+
+fetchSt db table = 
+  prepare db ("SELECT gram1, gram2, gram3, freq FROM " 
+              ++ table
+              ++ " WHERE lang = ?")
+
+fetchLangsSt db = prepare db ("SELECT DISTINCT lang FROM " 
+                              ++ nameTriGrams)
 
 createNameTable db names = 
   do run db ("CREATE TABLE " ++ nameName
@@ -55,21 +105,23 @@ trigramTable n = "CREATE TABLE "
 
 type QTrigs = [(String, FreqList TriGram)]
 
-createTables :: Database -> IO ()
+createTables :: Connection -> IO ()
 createTables db = 
   createDataTable db nameAData
   >> createDataTable db nameBData
   >> createDataTable db nameTriGrams
   >> commit db
 
-insertLang :: Database -> String -> (String, FreqList TriGram) -> IO ()
-insertLang db n trigs = fillTable db n [trigs] >> commit db
+insertLangAll db trigs = insertLang (conn db) (insertAllTriGrams db) trigs
+insertLangA db trigs = insertLang (conn db) (insertATriGrams db) trigs
+insertLangB db trigs = insertLang (conn db) (insertBTriGrams db) trigs
 
-fillTable :: Database -> String -> QTrigs -> IO ()
-fillTable db n ts =
-  do st <- prepare db ("INSERT INTO " ++ n 
-                       ++ " VALUES (?, ?, ?, ?, ?)")
-     let rows :: [(String, Char, Char, Char, Int)]
+insertLang :: Connection -> Statement -> (String, FreqList TriGram) -> IO ()
+insertLang c st trigs = fillTable st [trigs] >> commit c
+
+fillTable :: Statement -> QTrigs -> IO ()
+fillTable st ts =
+  do let rows :: [(String, Char, Char, Char, Int)]
          rows = (concat . fmap flat . fmap (smap toL)) ts
          sqlRows = fmap (\(n,g1,g2,g3,v) -> toSql n 
                                             : toSql g1
@@ -91,14 +143,8 @@ toList = M.toList . freqMap
 fetchLangNames :: Database -> IO [String]
 fetchLangNames db = 
   fmap fromSql . concat 
-  <$> quickQuery' db ("SELECT DISTINCT lang FROM " 
-                      ++ nameTriGrams) []
-
-getLangValues :: Database -> String -> String -> IO ([[SqlValue]])
-getLangValues db lang table = 
-  quickQuery' db ("SELECT gram1, gram2, gram3, freq FROM " 
-                  ++ table
-                  ++ " WHERE lang = ?") [toSql lang]
+  <$> (execute (getLangNames db) []
+       >> fetchAllRows' (getLangNames db))
 
 readOut :: [[SqlValue]] -> [(TriGram, Int)]
 readOut vs = (fmap readOne vs)
@@ -110,14 +156,13 @@ readOne (g1:g2:g3:c:[]) = let f = toTok . fromSql
 toFreqL :: [(TriGram, Int)] -> FreqList TriGram
 toFreqL = FreqList . (M.fromList :: [(TriGram,Int)] -> M.Map TriGram Int)
 
-fetchTriGrams' :: Database -> String -> String 
-               -> IO (String, FreqList TriGram)
-fetchTriGrams' db name lang = 
+fetchTriGrams' :: Statement -> String -> IO (String, FreqList TriGram)
+fetchTriGrams' st lang = 
   (,) lang
   <$> toFreqL
   <$> readOut 
-  <$> getLangValues db lang name
+  <$> (execute st [toSql lang] >> fetchAllRows' st)
 
-fetchTriGrams db lang = fetchTriGrams' db nameTriGrams lang
-fetchAData db lang = fetchTriGrams' db nameAData lang
-fetchBData db lang = fetchTriGrams' db nameBData lang
+fetchTriGrams db lang = fetchTriGrams' (getAllTriGrams db) lang
+fetchAData db lang = fetchTriGrams' (getATriGrams db) lang
+fetchBData db lang = fetchTriGrams' (getBTriGrams db) lang

@@ -43,7 +43,7 @@ execOpts = execParser (info (helper <*> parser) desc)
 main = execOpts >>= identify
 
 identify (Opts name num) = 
-  do db <- connect name
+  do db <- connectDB name
      langs <- fetchLangNames db
      datas <- sequence (fmap (fetchTriGrams db) langs)
      target <- getContents
