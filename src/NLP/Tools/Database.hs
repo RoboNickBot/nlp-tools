@@ -51,20 +51,20 @@ connectDB dbname = do db <- connectSqlite3 dbname
                       mkStatements db
 
 createDB :: String -> IO Database
-createDB dbname = do db <- connectSqlite3 dbname
-                     createTables db
-                     mkStatements db
+createDB dbname = do c <- connectSqlite3 dbname
+                     createTables c
+                     mkStatements c
 
 mkStatements :: Connection -> IO Database
-mkStatements db = 
-  do sAllTriGrams <- insertSt db nameTriGrams
-     sATriGrams <- insertSt db nameAData
-     sBTriGrams <- insertSt db nameBData
-     gAllTriGrams <- fetchSt db nameTriGrams
-     gATriGrams <- fetchSt db nameAData
-     gBTriGrams <- fetchSt db nameBData
-     gLangNames <- fetchLangsSt db
-     return (Database db
+mkStatements c = 
+  do sAllTriGrams <- insertSt c nameTriGrams
+     sATriGrams <- insertSt c nameAData
+     sBTriGrams <- insertSt c nameBData
+     gAllTriGrams <- fetchSt c nameTriGrams
+     gATriGrams <- fetchSt c nameAData
+     gBTriGrams <- fetchSt c nameBData
+     gLangNames <- fetchLangsSt c
+     return (Database c
                       gAllTriGrams
                       gATriGrams
                       gBTriGrams
@@ -79,9 +79,9 @@ insertSt db table = prepare db ("INSERT INTO " ++ table
                                 ++ " VALUES (?, ?, ?, ?, ?)")
 
 fetchSt db table = 
-  prepare db ("SELECT gram1, gram2, gram3, freq FROM " 
-              ++ table
-              ++ " WHERE lang = ?")
+  trace "called fetchSt" $ prepare db ("SELECT gram1, gram2, gram3, freq FROM " 
+                                      ++ table
+                                      ++ " WHERE lang = ?")
 
 fetchLangsSt db = prepare db ("SELECT DISTINCT lang FROM " 
                               ++ nameTriGrams)
@@ -144,14 +144,19 @@ fetchLangNames :: Database -> IO [String]
 fetchLangNames db = 
   fmap fromSql . concat 
   <$> (execute (getLangNames db) []
-       >> fetchAllRows' (getLangNames db))
+       >> fetchAllRows (getLangNames db))
 
 readOut :: [[SqlValue]] -> [(TriGram, Int)]
 readOut vs = (fmap readOne vs)
 
+convTok = toTok . fromSql
+
+convInt :: SqlValue -> Int
+convInt = fromSql
+
 readOne :: [SqlValue] -> (TriGram, Int)
-readOne (g1:g2:g3:c:[]) = let f = toTok . fromSql
-                          in (TriGram (f g1) (f g2) (f g3), fromSql c)
+readOne (g1:g2:g3:c:[]) = let f = convTok
+                          in (TriGram (f g1) (f g2) (f g3), convInt c)
 
 toFreqL :: [(TriGram, Int)] -> FreqList TriGram
 toFreqL = FreqList . (M.fromList :: [(TriGram,Int)] -> M.Map TriGram Int)
@@ -161,7 +166,7 @@ fetchTriGrams' st lang =
   (,) lang
   <$> toFreqL
   <$> readOut 
-  <$> (execute st [toSql lang] >> fetchAllRows' st)
+  <$> (execute st [toSql lang] >> fetchAllRows st)
 
 fetchTriGrams db lang = fetchTriGrams' (getAllTriGrams db) lang
 fetchAData db lang = fetchTriGrams' (getATriGrams db) lang
