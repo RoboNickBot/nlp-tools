@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module NLP.Tools.Database ( createDB
                           , connectDB
                           , disconnectDB
@@ -82,12 +83,12 @@ insertSt db table = prepare db ("INSERT INTO " ++ table
                                 ++ " VALUES (?, ?, ?, ?, ?)")
 
 prepSt c s = prepare c s
-                     
+
 strSt table = ("SELECT gram1, gram2, gram3, freq FROM " 
                                         ++ table
                                         ++ " WHERE lang = ?")
 
-fetchSt c table = 
+fetchSt !c !table = 
   prepSt c (strSt table)
 
 fetchLangsSt db = prepare db ("SELECT DISTINCT lang FROM " 
@@ -173,7 +174,7 @@ fetchTriGrams' st lang =
   (,) lang
   <$> toFreqL
   <$> readOut 
-  <$> (execute st [toSql lang] >> fetchAllRows st)
+  <$> (execute st [toSql lang] >> fetchAllRows' st)
 
 fetchTriGrams db lang = fetchTriGrams' (getAllTriGrams db) lang
 fetchAData db lang = fetchTriGrams' (getATriGrams db) lang
