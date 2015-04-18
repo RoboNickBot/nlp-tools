@@ -169,12 +169,17 @@ readOne (g1:g2:g3:c:[]) = let f = convTok
 toFreqL :: [(TriGram, Int)] -> FreqList TriGram
 toFreqL = FreqList . (M.fromList :: [(TriGram,Int)] -> M.Map TriGram Int)
 
-fetchTriGrams' :: Statement -> String -> IO (String, FreqList TriGram)
-fetchTriGrams' st lang = 
-  (,) lang
-  <$> toFreqL
-  <$> readOut 
-  <$> (execute st [toSql lang] >> fetchAllRows' st)
+sortOut :: [(String, TriGram, Int)] -> String -> (String, FreqList TriGram)
+sortOut gs lang = (lang, FreqList
+                         . M.fromList 
+                         . fmap (\(a,b,c) -> (b,c)) 
+                         . filter (\(a,b,c) -> a == lang) $ gs)
+
+
+fetchTriGrams' :: Statement -> [String] -> IO [(String, FreqList TriGram)]
+fetchTriGrams' st langs = (\gs -> fmap (sortOut gs) langs) 
+                          <$> readOut 
+                          <$> (execute st [] >> fetchAllRows st)
 
 fetchTriGrams db lang = fetchTriGrams' (getAllTriGrams db) lang
 fetchAData db lang = fetchTriGrams' (getATriGrams db) lang
