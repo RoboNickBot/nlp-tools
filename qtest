@@ -4,6 +4,6 @@ DB="nlp.asdf.db"
 
 rm $DB 2>/dev/null 
 ./dist/build/builddb/builddb -s /data/crubadan.small/ -o $DB
-./dist/build/analyze/analyze -d $DB
+# ./dist/build/analyze/analyze -d $DB
 ./dist/build/wrident/wrident -d $DB < walt-en.txt
 rm $DB

@@ -45,18 +45,22 @@ main = execOpts >>= identify
 
 identify (Opts name num) = 
   do db <- connectDB name >>= evaluate
-     langs <- fetchLangNames db
-     datas <- sequence (fmap (fetchTriGrams db) langs)
+     langs <- fetchLangNames db 
      target <- getContents
      let trFreq :: FreqList TriGram
          trFreq = features target
+         
+         funs = zip langs $ fmap (\l -> ( (fetchTriGrams db l)
+                                        , (fetchLen db l)      )) langs
 
-         scores = L.reverse
-                  . L.sortBy (\(a,b) (c,d) -> compare b d)
-                  . filtNans
-                  . fmap (smap (cosine trFreq)) $ datas 
+     scores <- sequence (fmap (check trFreq) funs)
+     let niceScores = L.sortBy (\(a,b) (c,d) -> compare b d)
+                      . filtNans $ scores
      putStrLn ":: Top Matches ::"
-     (sequence_ . fmap print . take num) scores
+     (sequence_ . fmap print . take num) niceScores
+
+check tr (l,fs) = do score <- cosineM tr fs
+                     return (l,score)
 
 rever (a,b) = (b,a)
 

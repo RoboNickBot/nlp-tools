@@ -68,6 +68,7 @@ processFile db p (l,fn) =
          aData = f aSents
          bData = f bSents
      insertLangAll db allData
+     insertLen db (smap len allData)
      insertLangA db aData
      insertLangB db bData
      hPutStrLn stderr $ "Inserted lang <" ++ l ++ "> ..."
