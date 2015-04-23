@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module NLP.Tools.Database ( createDB
                           , connectDB
                           , disconnectDB
