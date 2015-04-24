@@ -65,7 +65,7 @@ fetchTriGramsSt :: Database -> Int -> IO Statement
 fetchTriGramsSt db ls = 
   prepare c ("SELECT language, trigram, frequency FROM " 
              ++ trigramTableLF
-             ++ " WHERE dataset = ? AND ( "
+             ++ " WHERE dataset = ? AND cardinality < ? AND ( "
              ++ lpreds ++ " )")
   where pred =  "language = ?"
         lpreds = (concat 
@@ -82,11 +82,12 @@ trig2str t = fmap fromTok [tri1 t, tri2 t, tri3 t]
 fetch = fetchTriGrams
 
 fetchTriGrams :: Statement 
-              -> String 
+              -> String
+              -> Int
               -> [String]
               -> IO (M.Map String (FreqList TriGram))
-fetchTriGrams st set langs = 
-  execute st ([toSql set] ++ fmap toSql langs)
+fetchTriGrams st set card langs = 
+  execute st ([toSql set, toSql card] ++ fmap toSql langs)
   >> ((mkFreqs . simMap . fmap parseRow) <$> fetchAllRows' st)
   where parseRow [l,t,f] = (fromSql l, (str2trig . fromSql $ t, fromSql f))
         simMap ls = foldl (\m (l,q) -> ins l q m) M.empty ls
@@ -111,16 +112,17 @@ insertLengths db rows =
 
 insertTriGramsSt :: Connection -> IO Statement
 insertTriGramsSt c = prepare c ("INSERT INTO " ++ trigramTableLF
-                                ++ " VALUES (?, ?, ?, ?)")
+                                ++ " VALUES (?, ?, ?, ?, ?)")
                                 
 insertTriGrams :: Database 
-               -> [(String, String, TriGram, Int)] 
+               -> [(String, String, TriGram, Int, Int)] 
                -> IO ()
 insertTriGrams db rows = 
-  do let prepRow (s,l,tr,f) = [toSql s
-                              ,toSql l
-                              ,toSql (tt tr)
-                              ,toSql f]
+  do let prepRow (s,l,tr,f,n) = [toSql s
+                                ,toSql l
+                                ,toSql (tt tr)
+                                ,toSql f
+                                ,toSql n]
          tt t = fmap fromTok [tri1 t,tri2 t, tri3 t]
      executeMany (iTrigs db) (fmap prepRow rows)
      commit (conn db)
@@ -129,13 +131,15 @@ tables = ["CREATE TABLE " ++ trigramTableLF
           ++ " (dataset TEXT NOT NULL, \
              \language TEXT NOT NULL, \
              \trigram CHARACTER(3) NOT NULL, \
-             \frequency INT NOT NULL)"
+             \frequency INT NOT NULL, \
+             \cardinality INT NOT NULL)"
 
          ,"CREATE TABLE " ++ trigramTableTF
           ++ " (dataset TEXT NOT NULL, \
              \trigram CHARACTER(3) NOT NULL, \
              \language TEXT NOT NULL, \
-             \frequency INT NOT NULL)"
+             \frequency INT NOT NULL, \
+             \cardinality INT NOT NULL)"
 
          ,"CREATE TABLE " ++ lengthTable
           ++ " (dataset TEXT NOT NULL, \

@@ -3,6 +3,7 @@ import NLP.Crubadan
 import NLP.Freq
 import NLP.Tools
 
+import System.IO (hPutStrLn, stderr)
 import Options.Applicative
 import Control.Exception (evaluate)
 import Control.Monad
@@ -10,9 +11,9 @@ import Control.Monad
 import qualified Data.Text as T
 import qualified Data.List as L
 import qualified Data.Set as S
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 
-data Opts = Opts String Int Int
+data Opts = Opts String Int Int Int
 
 pNumPer = option auto (long "num-per-read"
                        <> short 'p'
@@ -41,6 +42,16 @@ pDB = strOption (long "database"
                  <> help h )
   where h = "Database to use for identification"
   
+pTrigrams = option auto (long "num-trigrams"
+                         <> short 't'
+                         <> value 5000
+                         <> metavar "NUMBER"
+                         <> showDefault
+                         <> help h)
+  where h = "The number of trigrams to pull from each checked \
+            \language for the comparison (starting with the \
+            \most frequent)"
+
 desc = fullDesc
        <> progDesc "Identify text on standard input as \
                    \a particular language, using language \
@@ -48,7 +59,7 @@ desc = fullDesc
                    \(see builddb)"
        <> header "identify the language of a text"
        
-parser = Opts <$> pDB <*> pNumRes <*> pNumPer
+parser = Opts <$> pDB <*> pNumRes <*> pNumPer <*> pTrigrams
 
 execOpts = execParser (info (helper <*> parser) desc)
 
@@ -56,7 +67,7 @@ execOpts = execParser (info (helper <*> parser) desc)
 
 main = execOpts >>= identify
 
-identify (Opts name numResults numPer) = 
+identify (Opts name numResults numPer numTrigrams) = 
   do db <- connectDB name
      target <- getContents
      candidates <- (fmap fst . M.toList) 
@@ -64,16 +75,16 @@ identify (Opts name numResults numPer) =
      let trFreq :: FreqList TriGram
          trFreq = features target
      st <- fetchSt db numPer
-     let crawl' = crawl st numResults trFreq "dataAll"
+     let crawl' = crawl st numResults trFreq "dataAll" numTrigrams
      scores <- foldM crawl' [] (divie' "   " numPer candidates)
      putStrLn "\n:: Top Matches ::"
      (sequence_ . fmap print) scores
 
-crawl st numResults frq set scores langs = 
+crawl st numResults frq set numTrigrams scores langs = 
   do (sequence_ 
-      . fmap putStrLn 
+      . fmap (hPutStrLn stderr) 
       . fmap (\l -> "Evaluating " ++ l ++ "...")) langs
-     ops <- fetch st set langs
+     ops <- fetch st set numTrigrams langs
      evaluate (foldl (check numResults frq) scores (M.toList ops))
 
 check :: Int 

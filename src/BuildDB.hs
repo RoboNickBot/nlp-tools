@@ -2,7 +2,7 @@ import System.Directory
 import System.IO (hPutStrLn, stderr)
 import Options.Applicative
 import qualified Data.List as L
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 -- import qualified System.IO.Strict as St
 
 import NLP.General
@@ -80,9 +80,12 @@ store db set d = do insertTriGrams db (mkTGRows set d)
 
 mkTGRows :: String 
          -> (String, FreqList TriGram) 
-         -> [(String,String,TriGram,Int)]
-mkTGRows set (lang,fl) = let toRow (tg,fr) = (set,lang,tg,fr)
-                         in fmap toRow (M.toList (freqMap fl))
+         -> [(String,String,TriGram,Int,Int)]
+mkTGRows set (lang,fl) = let toRow ((tg,fr),n) = (set,lang,tg,fr,n)
+                         in fmap toRow (zip ((tSort . M.toList) 
+                                               (freqMap fl)) [0,1..])
+
+tSort = L.sortBy (\(l1,f1) (l2,f2) -> compare f2 f1)
 
 mkLRow :: String -> (String, Double) -> (String, String, Double)
 mkLRow set (lang,len) = (set,lang,len)
