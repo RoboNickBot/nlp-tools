@@ -61,16 +61,21 @@ fetchAllLengths db dataset =
 
 fetchSt = fetchTriGramsSt
 
-fetchTriGramsSt :: Database -> [TriGram] -> IO Statement
-fetchTriGramsSt db trigrams = 
-  prepare c ("SELECT trigram, frequency FROM " ++ trigramTableLF
-             ++ " WHERE dataset = ? AND language = ? AND ( "
-             ++ tpreds ++ " )")
-  where pred t = "trigram = alp"
-        tpreds = (concat . L.intersperse " OR " . fmap pred) ts
-        ts = fmap trig2str trigrams
+fetchTriGramsSt :: Database -> Int -> IO Statement
+fetchTriGramsSt db ls = 
+  prepare c ("SELECT language, trigram, frequency FROM " 
+             ++ trigramTableLF
+             ++ " WHERE dataset = ? AND ( "
+             ++ lpreds ++ " )")
+  where pred =  "language = ?"
+        lpreds = (concat 
+                  . L.intersperse " OR " 
+                  . replicate ls) pred
         c = conn db
-        
+     
+str2trig :: String -> TriGram
+str2trig [a,b,c] = TriGram (toTok a) (toTok b) (toTok c)
+   
 trig2str :: TriGram -> String
 trig2str t = fmap fromTok [tri1 t, tri2 t, tri3 t]
 
@@ -78,21 +83,19 @@ fetch = fetchTriGrams
 
 fetchTriGrams :: Statement 
               -> String 
-              -> String
-              -> [TriGram]
-              -> IO (FreqList TriGram)
-fetchTriGrams st set lang trigrams = 
-  execute st ([toSql set, toSql lang] ++ fmap (toSql . trig2str) trigrams)
-  >> (FreqList <$> mkMap M.empty)
-  where mkMap :: M.Map TriGram Int -> IO (M.Map TriGram Int)
-        mkMap m = fetchRow st >>= rowsert m
-        rowsert m r = case r of
-                        Just [tr,fr] -> mkMap (M.insert (toTrig (fromSql tr))
-                                                        (fromSql fr) 
-                                                        m)
-                        _ -> return m
-        toTrig :: String -> TriGram
-        toTrig [a,b,c] = TriGram (toTok a) (toTok b) (toTok c)
+              -> [String]
+              -> IO (M.Map String (FreqList TriGram))
+fetchTriGrams st set langs = 
+  execute st ([toSql set] ++ fmap toSql langs)
+  >> ((mkFreqs . simMap . fmap parseRow) <$> fetchAllRows' st)
+  where parseRow [l,t,f] = (fromSql l, (str2trig . fromSql $ t, fromSql f))
+        simMap ls = foldl (\m (l,q) -> ins l q m) M.empty ls
+        mkFreqs = fmap (FreqList . M.fromList)
+
+ins :: Ord k => k -> a -> M.Map k [a] -> M.Map k [a]
+ins k a m = case M.lookup k m of
+              Just b -> M.insert k (a:b) m
+              _ -> M.insert k [a] m
 
 insertLengthsSt :: Connection -> IO Statement
 insertLengthsSt c = prepare c ("INSERT INTO " ++ lengthTable
