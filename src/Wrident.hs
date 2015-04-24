@@ -5,10 +5,12 @@ import NLP.Tools
 
 import Options.Applicative
 import Control.Exception (evaluate)
+import Control.Monad
 
 import qualified Data.Text as T
 import qualified Data.List as L
 import qualified Data.Set as S
+import qualified Data.Map as M
 
 data Opts = Opts String Int
 
@@ -44,23 +46,29 @@ execOpts = execParser (info (helper <*> parser) desc)
 main = execOpts >>= identify
 
 identify (Opts name num) = 
-  do db <- connectDB name >>= evaluate
-     langs <- fetchLangNames db 
+  do db <- connectDB name
      target <- getContents
+     candidates <- (fmap fst . M.toList) 
+                   <$> fetchAllLengths db "dataAll" 
      let trFreq :: FreqList TriGram
          trFreq = features target
-         
-         funs = zip langs $ fmap (\l -> ( (fetchTriGrams db l)
-                                        , (fetchLen db l)      )) langs
+         grams = M.keys (freqMap trFreq)
+     st <- fetchSt db grams
+     let check' = check st 30 trFreq grams "dataAll"
+     scores <- foldM check' [] candidates
+     putStrLn "\n:: Top Matches ::"
+     (sequence_ . fmap print) scores
 
-     scores <- sequence (fmap (check trFreq) funs)
-     let niceScores = L.sortBy (\(a,b) (c,d) -> compare b d)
-                      . filtNans $ scores
-     putStrLn ":: Top Matches ::"
-     (sequence_ . fmap print . take num) niceScores
+check st num frq grams set scores lang = 
+  do putStrLn ("Evaluating " ++ lang ++ "...")
+     putStrLn ("With " ++ show (length grams) ++ " trigrams...")
+     op <- fetch st set lang grams
+     let score = (lang, cosine frq op)
+     -- putStrLn ("With " ++ show op) -- show freqlists (noisy)
+     evaluate ((take num . scoreSort) (score : scores))
 
-check tr (l,fs) = do score <- cosineM tr fs
-                     return (l,score)
+scoreSort :: [(String, Double)] -> [(String, Double)]
+scoreSort = L.sortBy (\(a,x) (b,y) -> compare y x)
 
 rever (a,b) = (b,a)
 
@@ -69,3 +77,8 @@ trs = read
 
 filtNans :: [(String, Double)] -> [(String, Double)]
 filtNans = filter (\(_,d) -> not (isNaN d))
+ 
+         
+         
+--funs = zip langs $ fmap (\l -> ( (fetchTriGrams db l)
+--                               , (fetchLen db l)      )) langs

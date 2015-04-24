@@ -2,7 +2,8 @@ import System.Directory
 import System.IO (hPutStrLn, stderr)
 import Options.Applicative
 import qualified Data.List as L
-import qualified System.IO.Strict as St
+import qualified Data.Map as M
+-- import qualified System.IO.Strict as St
 
 import NLP.General
 import NLP.Freq
@@ -53,7 +54,8 @@ mkdatabase (Opts dbname dataroot prc) =
   do dirs <- datadirs dataroot
      let files = datafilenames dataroot dirs
      
-     db <- createDB dbname
+     createDB dbname
+     db <- connectDB dbname
 
      sequence_ (fmap (processFile db prc) files)
 
@@ -67,11 +69,23 @@ processFile db p (l,fn) =
          allData = f sents
          aData = f aSents
          bData = f bSents
-     insertLangAll db allData
-     insertLen db (smap len allData)
-     insertLangA db aData
-     insertLangB db bData
+     store db "dataAll" allData
+     store db "dataA" aData
+     store db "dataB" bData
      hPutStrLn stderr $ "Inserted lang <" ++ l ++ "> ..."
+     
+store :: Database -> String -> (String, FreqList TriGram) -> IO ()
+store db set d = do insertTriGrams db (mkTGRows set d)
+                    insertLengths db [(mkLRow set (smap len d))]
+
+mkTGRows :: String 
+         -> (String, FreqList TriGram) 
+         -> [(String,String,TriGram,Int)]
+mkTGRows set (lang,fl) = let toRow (tg,fr) = (set,lang,tg,fr)
+                         in fmap toRow (M.toList (freqMap fl))
+
+mkLRow :: String -> (String, Double) -> (String, String, Double)
+mkLRow set (lang,len) = (set,lang,len)
 
 datafilenames :: String -> [String] -> [(String,String)]
 datafilenames root dirs = 
@@ -82,7 +96,7 @@ datadirs = fmap (L.delete ".")
            . getDirectoryContents
 
 datafile :: (String, String) -> IO (String, String)
-datafile (lang,fn) = (,) lang <$> St.readFile fn
+datafile (lang,fn) = (,) lang <$> readFile fn
 
 ftrig :: String -> FreqList TriGram
 ftrig = features
