@@ -25,7 +25,7 @@ parser = Opts <$> pDir <*> pDB <*> pPr <*> pNum <*> pTrigrams
 
 pTrigrams = option auto (long "num-trigrams"
                          <> short 't'
-                         <> value 5000
+                         <> value 50
                          <> metavar "NUMBER"
                          <> showDefault
                          <> help h)
@@ -110,8 +110,52 @@ fromDB os =
      results <- foldM crawl1' M.empty sets
      
      let winners = fmap (snd . maximum) results
-     (sequence_ . fmap print . M.toList) winners
+         mistakes = filter (\(a,b) -> a /= b) . M.toList $ winners
+         ml = maxlen mistakes
+
+     putStrLn (":: Database analysis on \"" ++ opDB os ++ "\" ::")
+     putStrLn ""
+     putStrLn ("(Using the " ++ show (opNumTrigrams os) 
+               ++ " most frequent TriGrams from each list)")
+     putStrLn ""
      (putStrLn . stats . M.toList) winners
+     putStrLn ""
+
+     putStrLn "The following mistakes occured:"
+     putStrLn ""
+     (sequence_ . fmap (putStrLn . idAs ml)) mistakes
+     putStrLn ""
+     putStrLn ""
+     putStrLn "Mistake Details:"
+     putStrLn ""
+     (sequence_ . fmap (Main.prettyprint ml results)) mistakes
+
+idAs m (a,b) = show a ++ replicate (m - length a + 2) ' ' ++ "identified as  " ++ show b
+
+prettyprint :: Int ->  M.Map String [(Double,String)] -> (String,String) -> IO ()
+prettyprint ml res mis = 
+  let vals = fmap (\(a,b) -> (b,a)) 
+             . takeWhilePlus (\(v,l) -> l /= (fst mis)) 
+             . L.sortBy (\(v1,_) (v2,_) -> compare v2 v1) 
+             $ (res M.! (fst mis)) 
+  in do putStrLn "-----------------------------"
+        putStrLn ""
+        putStrLn (idAs ml mis)
+        putStrLn ""
+        sequence_ (fmap (line (fst mis)) vals)
+        putStrLn ""
+
+maxlen ((a,b):cs) = max (length a) . max (length b) $ maxlen cs
+maxlen _ = 0
+
+line c (l,v) = putStrLn (if c == l
+                            then " --> " ++ show (l,v)
+                            else "  X  " ++ show (l,v))
+
+takeWhilePlus b (a:as) = if b a
+                            then a : takeWhilePlus b as
+                            else a : []
+takeWhilePlus _ _ = []
 
 crawl1 :: Statement -> Opts -> [[String]] -> Results -> [String] -> IO Results
 crawl1 st os sets results f1 = 

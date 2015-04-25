@@ -44,7 +44,7 @@ pDB = strOption (long "database"
   
 pTrigrams = option auto (long "num-trigrams"
                          <> short 't'
-                         <> value 5000
+                         <> value 50
                          <> metavar "NUMBER"
                          <> showDefault
                          <> help h)
